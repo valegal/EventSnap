@@ -5,11 +5,67 @@ import UploadCloud from "../icons/UploadCloud"; // Asegúrate de que la ruta es 
 
 const UploadButton = () => {
   const [files, setFiles] = useState<FileList | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState("");
+
   const maxPhotos = 50;
   const maxVideos = 5;
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setFiles(event.target.files);
+    const selectedFiles = event.target.files;
+    if (selectedFiles) {
+      setFiles(selectedFiles);
+      uploadFiles(selectedFiles);
+    }
+  };
+
+  const uploadFiles = async (selectedFiles: FileList) => {
+    setUploading(true);
+    setMessage("Subiendo archivos...");
+
+    try {
+      const responses = await Promise.all(
+        Array.from(selectedFiles).map(async (file) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+
+          return new Promise((resolve, reject) => {
+            reader.onload = async () => {
+              const rawLog = reader.result?.toString().split(",")[1];
+              if (rawLog) {
+                const dataSend = {
+                  dataReq: { data: rawLog, name: file.name, type: file.type },
+                  fname: "uploadFilesToGoogleDrive",
+                };
+
+                try {
+                  const response = await fetch("/api/upload", {
+                    method: "POST",
+                    body: JSON.stringify(dataSend),
+                    headers: { "Content-Type": "application/json" },
+                  });
+
+                  const result = await response.json();
+                  resolve(result);
+                } catch (error) {
+                  reject(error);
+                }
+              }
+            };
+
+            reader.onerror = () => reject(new Error("Error al leer el archivo"));
+          });
+        })
+      );
+
+      setMessage("✅ Subida exitosa.");
+      console.log("Archivos subidos:", responses);
+    } catch (error) {
+      setMessage("❌ Error al subir archivos.");
+      console.error("Error al subir:", error);
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -30,10 +86,12 @@ const UploadButton = () => {
         accept="image/*,video/*"
         className="hidden"
         onChange={handleFileChange}
+        disabled={uploading}
       />
       <p className="text-gray-700 text-center font-mono mt-4 text-md sm:text-md">
-      <span className="text-blue-500">* </span> Puedes subir hasta <strong>{maxPhotos} fotos</strong> y <strong>{maxVideos} videos</strong>.
+        <span className="text-blue-500">* </span> Puedes subir hasta <strong>{maxPhotos} fotos</strong> y <strong>{maxVideos} videos</strong>.
       </p>
+      {message && <p className="mt-4 text-lg font-semibold text-gray-800">{message}</p>}
     </div>
   );
 };
