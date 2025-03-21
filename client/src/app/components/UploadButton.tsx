@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback } from "react";
 import UploadCloud from "../icons/UploadCloud";
+import imageCompression from "browser-image-compression";
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 const ACCEPTED_TYPES = ["image/", "video/"]; // Solo imágenes y videos
@@ -31,8 +32,21 @@ const UploadButton = () => {
     try {
       const results = await Promise.allSettled(
         Array.from(files).map(async (file) => {
+          let fileToUpload = file;
+
+          // Comprimir solo si es una imagen
+          if (file.type.startsWith("image/")) {
+            const options = {
+              maxSizeMB: 2, // Tamaño máximo de la imagen comprimida (2MB)
+              maxWidthOrHeight: 1920, // Resolución máxima (ancho o alto)
+              useWebWorker: true, // Usar un Web Worker para mejorar el rendimiento
+            };
+
+            fileToUpload = await imageCompression(file, options);
+          }
+
           const formData = new FormData();
-          formData.append("file", file);
+          formData.append("file", fileToUpload);
 
           const response = await fetch("/api/upload", {
             method: "POST",
@@ -68,16 +82,16 @@ const UploadButton = () => {
         <div className="flex items-center justify-center w-24 h-24 bg-blue-100 rounded-full shadow-md">
           <UploadCloud className="w-12 h-12 text-blue-700" />
         </div>
-        <span>Subir fotos y videos aquí</span>
+        <span className="text-center">Subir fotos y videos aquí</span>
       </label>
       <input
         id="file-upload"
         type="file"
-        accept="image/*,video/*" // Solo aceptar imágenes y videos
+        accept="image/*,video/*"
         className="hidden"
         onChange={handleFileChange}
         disabled={uploading}
-        multiple // Permite seleccionar múltiples archivos
+        multiple
       />
       <p className="text-gray-700 text-center max-w-sm mt-4">
         Puedes subir hasta <strong>10 archivos</strong> (máx. 100MB), solo formatos de imagen y video.
